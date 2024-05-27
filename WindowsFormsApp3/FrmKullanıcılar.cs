@@ -7,6 +7,7 @@ using Sistem.DB.Model;
 using Sistem.DB.Service;
 
 using System.Linq;
+using DevExpress.XtraGrid.Columns;
 
 namespace WindowsFormsApp3
 {
@@ -65,10 +66,14 @@ namespace WindowsFormsApp3
         private void UpdateColumnOrder()
         {
             _columnOrder = gridView1.Columns.Cast<DevExpress.XtraGrid.Columns.GridColumn>()
-                                       .OrderBy(column => column.VisibleIndex) 
+                                       .OrderBy(column => column.VisibleIndex)
                                        .Select(column => column.FieldName)
                                        .ToList();
+
+
         }
+      
+
 
         private void SaveMenuItem_Click(object sender, EventArgs e)
         {
@@ -90,20 +95,23 @@ namespace WindowsFormsApp3
                     string updateQuery = "UPDATE grid_user SET Column1 = @Column1 WHERE UserId = @UserId";
                     SqlCommand updateCommand = new SqlCommand(updateQuery, connection);
                     updateCommand.Parameters.AddWithValue("@UserId", _userId);
-                    updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder));
+                    updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3))); 
+                   //updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder));
                     updateCommand.ExecuteNonQuery();
+
+
                 }
                 else
                 {
                     string query2 = "INSERT INTO grid_user (UserId, Column1) VALUES (@UserId, @Column1)";
                     SqlCommand command2 = new SqlCommand(query2, connection);
                     command2.Parameters.AddWithValue("@UserId", _userId);
-                    command2.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder));
-
-                     command2.ExecuteNonQuery();
+                    command2.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3))); 
+                    command2.ExecuteNonQuery();
                 }
-                   
-                  
+
+
+
             }
             catch (Exception ex)
             {
@@ -119,33 +127,43 @@ namespace WindowsFormsApp3
                 List<string> columnOrder;
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
-                    connection.Open();
-                    string query = "SELECT Column1 FROM grid_user WHERE UserId = @UserId";
-                    SqlCommand command = new SqlCommand(query, connection);
-                    command.Parameters.AddWithValue("@UserId", _userId);
-                    object result = command.ExecuteScalar();
+                   
+                    var result = resultgetir(_userId, connection);
+                    
+
                     if (result != null && result != DBNull.Value)
                     {
                         string columnOrderString = (string)result;
-                        columnOrder = columnOrderString.Split(',').ToList();
-                        gridView1.Columns.Clear(); 
-                        foreach (string columnName in columnOrder)
+                        columnOrder = columnOrderString.Split(',')
+                            .Select((columnName, index) => new { ColumnName = columnName, Index = index })
+                            .Select(columnInfo => columnInfo.ColumnName)
+                            .ToList();
+
+                        for (int i = 0; i < columnOrder.Count; i++)
                         {
-                            gridView1.Columns.AddVisible(columnName);
+                            string columnName = columnOrder[i];
+                            GridColumn column = gridView1.Columns.AddVisible(columnName);
+                            column.VisibleIndex = i;
+                            //column.Visible = true;
 
-                            List<hazaluser> userList = _userService.GetAllUsers();
-                            gridControl1.DataSource = userList;
                         }
-                    }
 
-                 
-                   
-                    else
-                    {
+                        gridView1.Columns[0].VisibleIndex = 0;
+                        gridView1.Columns[2].VisibleIndex = 1;
+                        gridView1.Columns[4].VisibleIndex = 2;
                         List<hazaluser> userList = _userService.GetAllUsers();
                         gridControl1.DataSource = userList;
-
                         UpdateColumnOrder();
+                        //gridView1.Columns.Clear();
+                    }
+                    else 
+                    {
+                        gridView1.Columns[0].VisibleIndex = 0;
+                        gridView1.Columns[2].VisibleIndex = 1;
+                        gridView1.Columns[4].VisibleIndex = 2;
+                        List<hazaluser> userList = _userService.GetAllUsers();
+                        UpdateColumnOrder();
+                        gridControl1.DataSource = userList;
 
                     }
                 }
@@ -158,7 +176,24 @@ namespace WindowsFormsApp3
             }
         }
 
-            private void button1_Click(object sender, EventArgs e)
+        private object resultgetir(int userId, SqlConnection connection)
+        {
+            connection.Open();
+            string query = "SELECT Column1 FROM grid_user WHERE UserId = " + _userId + "";
+            SqlCommand command = new SqlCommand(query, connection);
+            object result = command.ExecuteScalar();
+            if (result == null || result == DBNull.Value)
+            {
+                query = "SELECT Column1 FROM grid_user WHERE UserId = 0";
+                command = new SqlCommand(query, connection);
+                result = command.ExecuteScalar();
+            }
+            connection.Close();
+
+            return result;
+        }
+
+        private void button1_Click(object sender, EventArgs e)
         {
 
             NewUser form2 = new NewUser();
@@ -183,25 +218,16 @@ namespace WindowsFormsApp3
             }
             else
             {
-                MessageBox.Show("Invalid row index.");
+                MessageBox.Show("güncellemede hata");
             }
         }
 
 
 
 
-
         private void button3_Click_1(object sender, EventArgs e)
         {
-            int[] selectedRows = gridView1.GetSelectedRows();
-            int selectedRowIndex = selectedRows[0];
-            int userId = Convert.ToInt32(gridView1.GetRowCellValue(selectedRowIndex, "Id"));
-            DialogResult result = MessageBox.Show("Kullanıcıyı silmek ister misiniz?", "Bilgi", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (result == DialogResult.Yes)
-            {
-                _userService.Sil(userId);
-                griddoldur();
-            }
+           
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -235,6 +261,65 @@ namespace WindowsFormsApp3
             Login login = new Login();
             login.Show();
             this.Hide();
+        }
+
+        private void repositoryItemButtonEdit1_ButtonClick(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+            griddoldur();
+        }
+
+        private void btnDelete_ButtonClick(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+            griddoldur();
+        }
+
+        private void btnDelete_ButtonPressed(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+
+            int[] selectedRows = gridView1.GetSelectedRows();
+            int selectedRowIndex = selectedRows[0];
+            int userId = Convert.ToInt32(gridView1.GetRowCellValue(selectedRowIndex, "Id"));
+            DialogResult result = MessageBox.Show("Kullanıcıyı silmek ister misiniz?", "Bilgi", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes)
+            {
+                _userService.Sil(userId);
+                griddoldur();
+            }
+        }
+
+        private void newuserbutton_ButtonClick(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+
+            NewUser form2 = new NewUser();
+            form2.ShowDialog();
+            griddoldur();
+        }
+
+        private void newuserbutton_ButtonPressed(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+            NewUser form2 = new NewUser();
+            form2.ShowDialog();
+            griddoldur();
+        }
+
+        private void guncellebtn_ButtonClick(object sender, DevExpress.XtraEditors.Controls.ButtonPressedEventArgs e)
+        {
+            int[] selectedRows = gridView1.GetSelectedRows();
+            if (selectedRows.Length > 0)
+            {
+                int selectedRowIndex = selectedRows[0];
+                int userId = Convert.ToInt32(gridView1.GetRowCellValue(selectedRowIndex, "Id"));
+                string username = Convert.ToString(gridView1.GetRowCellValue(selectedRowIndex, "username"));
+                string email = Convert.ToString(gridView1.GetRowCellValue(selectedRowIndex, "email"));
+                string password = _userService.GetUserPassword(userId);
+                KullaniciGuncelle form3 = new KullaniciGuncelle(userId, username, email, password);
+                form3.ShowDialog();
+                griddoldur();
+            }
+            else
+            {
+                MessageBox.Show("güncellemede hata");
+            }
         }
     }
 
