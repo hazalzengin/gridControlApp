@@ -8,6 +8,9 @@ using Sistem.DB.Service;
 
 using System.Linq;
 using DevExpress.XtraGrid.Columns;
+using System.IO;
+using System.Xml.Serialization;
+using System.Xml.Linq;
 
 namespace WindowsFormsApp3
 {
@@ -24,7 +27,7 @@ namespace WindowsFormsApp3
         {
             _userId = userId;
             InitializeComponent();
-            InitializeContextMenuStrip(); 
+            InitializeContextMenuStrip();
             _userService = new hazaluserservice(connectionString);
             _usermenuservice = new hazalusermenuservice(connectionString);
 
@@ -35,6 +38,12 @@ namespace WindowsFormsApp3
         {
             FillGridWithUserColumns();
             gridView1.ColumnPositionChanged += GridView1_ColumnPositionChanged;
+            string fileName = string.Format("{0}/{1}.xml", Application.StartupPath, this.Name);
+           
+            if (File.Exists(fileName))
+            {
+                gridControl1.MainView.RestoreLayoutFromXml(fileName);
+            }
 
         }
         private void GridView1_ColumnPositionChanged(object sender, EventArgs e)
@@ -45,7 +54,7 @@ namespace WindowsFormsApp3
         {
             List<hazaluser> userList = _userService.GetAllUsers();
             gridControl1.DataSource = userList;
-           
+
             UpdateColumnOrder();
 
 
@@ -54,7 +63,7 @@ namespace WindowsFormsApp3
         {
             contextMenuStrip = new ContextMenuStrip();
             saveMenuItem = new ToolStripMenuItem("Kaydet");
-          
+
             contextMenuStrip.Items.Add(saveMenuItem);
             gridControl1.ContextMenuStrip = contextMenuStrip;
         }
@@ -72,12 +81,22 @@ namespace WindowsFormsApp3
 
 
         }
-      
+
 
 
         private void SaveMenuItem_Click(object sender, EventArgs e)
         {
             SaveColumnOrder();
+            try
+            {
+                gridControl1.MainView.SaveLayoutToXml(string.Format("{0}/{1}.xml", Application.StartupPath, this.Name));
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Message", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
         }
 
         private void SaveColumnOrder()
@@ -95,8 +114,8 @@ namespace WindowsFormsApp3
                     string updateQuery = "UPDATE grid_user SET Column1 = @Column1 WHERE UserId = @UserId";
                     SqlCommand updateCommand = new SqlCommand(updateQuery, connection);
                     updateCommand.Parameters.AddWithValue("@UserId", _userId);
-                    updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3))); 
-                   //updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder));
+                    updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3)));
+                    //updateCommand.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder));
                     updateCommand.ExecuteNonQuery();
 
 
@@ -106,7 +125,7 @@ namespace WindowsFormsApp3
                     string query2 = "INSERT INTO grid_user (UserId, Column1) VALUES (@UserId, @Column1)";
                     SqlCommand command2 = new SqlCommand(query2, connection);
                     command2.Parameters.AddWithValue("@UserId", _userId);
-                    command2.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3))); 
+                    command2.Parameters.AddWithValue("@Column1", string.Join(",", _columnOrder.Skip(3)));
                     command2.ExecuteNonQuery();
                 }
 
@@ -127,9 +146,9 @@ namespace WindowsFormsApp3
                 List<string> columnOrder;
                 using (SqlConnection connection = new SqlConnection(connectionString))
                 {
-                   
+
                     var result = resultgetir(_userId, connection);
-                    
+
 
                     if (result != null && result != DBNull.Value)
                     {
@@ -145,30 +164,34 @@ namespace WindowsFormsApp3
                             GridColumn column = gridView1.Columns.AddVisible(columnName);
                             column.VisibleIndex = i;
                             //column.Visible = true;
+                            int width = GetColumnWidthFromXML(columnName);
+
+                            // Set column width before adding to grid
+                            column.Width = width;
 
                         }
 
                         gridView1.Columns[0].VisibleIndex = 0;
                         gridView1.Columns[2].VisibleIndex = 1;
-                        gridView1.Columns[4].VisibleIndex = 2;
+                        gridView1.Columns[3].VisibleIndex = 2;
                         List<hazaluser> userList = _userService.GetAllUsers();
                         gridControl1.DataSource = userList;
                         UpdateColumnOrder();
                         //gridView1.Columns.Clear();
                     }
-                    else 
+                    else
                     {
-                        gridView1.Columns[0].VisibleIndex = 0;
-                        gridView1.Columns[2].VisibleIndex = 1;
-                        gridView1.Columns[4].VisibleIndex = 2;
-                        List<hazaluser> userList = _userService.GetAllUsers();
-                        UpdateColumnOrder();
-                        gridControl1.DataSource = userList;
+                        //gridView1.Columns[0].VisibleIndex = 0;
+                        //gridView1.Columns[2].VisibleIndex = 1;
+                        //gridView1.Columns[4].VisibleIndex = 2;
+                        //List<hazaluser> userList = _userService.GetAllUsers();
+                        //UpdateColumnOrder();
+                        //gridControl1.DataSource = userList;
 
                     }
                 }
 
-             
+
             }
             catch (Exception ex)
             {
@@ -176,21 +199,58 @@ namespace WindowsFormsApp3
             }
         }
 
+        public int user = 0;
+        private int GetColumnWidthFromXML(string columnName)
+        {
+
+            try
+            {
+
+                XDocument doc = XDocument.Load(string.Format("{0}\\{1}.xml", Application.StartupPath, this.Name));
+                XElement columnsElement = doc.Descendants("property")
+                                    .FirstOrDefault(e => e.Attribute("name")?.Value == "Columns");
+                if (columnsElement != null)
+                {
+                    var items = columnsElement.Elements("property").Skip(user);
+                    foreach (var item in items)
+                    {
+
+                        int width = Convert.ToInt32(item.Descendants("property")
+                                         .FirstOrDefault(e => e.Attribute("name")?.Value == "Width")?.Value);
+                        user++;
+                        return width;
+
+                    }
+
+                }
+
+            }
+
+            catch (Exception ex)
+            {
+
+                MessageBox.Show("error: " + ex.Message);
+            }
+            return 10;
+        }
+
+
         private object resultgetir(int userId, SqlConnection connection)
         {
             connection.Open();
             string query = "SELECT Column1 FROM grid_user WHERE UserId = " + _userId + "";
             SqlCommand command = new SqlCommand(query, connection);
-            object result = command.ExecuteScalar();
-            if (result == null || result == DBNull.Value)
+            object result2 = command.ExecuteScalar();
+            if (result2 == null || result2 == DBNull.Value)
             {
                 query = "SELECT Column1 FROM grid_user WHERE UserId = 0";
                 command = new SqlCommand(query, connection);
-                result = command.ExecuteScalar();
+                result2 = command.ExecuteScalar();
             }
-            connection.Close();
 
-            return result;
+
+
+            return result2;
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -227,14 +287,14 @@ namespace WindowsFormsApp3
 
         private void button3_Click_1(object sender, EventArgs e)
         {
-           
+
         }
 
         private void button4_Click(object sender, EventArgs e)
         {
 
             DataTable dataSet = _usermenuservice.GetAll(null, null).Tables[0];
-            gridControl2.DataSource = dataSet;
+
 
         }
 
@@ -250,7 +310,7 @@ namespace WindowsFormsApp3
             }
         }
 
-     
+
         private void gridControl1_Click(object sender, EventArgs e)
         {
 
