@@ -11,6 +11,9 @@ using DevExpress.XtraGrid.Columns;
 using System.IO;
 using System.Xml.Serialization;
 using System.Xml.Linq;
+using System.Diagnostics;
+using ClosedXML.Excel;
+using DevExpress.XtraGrid.Views.Grid;
 
 namespace WindowsFormsApp3
 {
@@ -381,9 +384,53 @@ namespace WindowsFormsApp3
                 MessageBox.Show("güncellemede hata");
             }
         }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+
+            using (SaveFileDialog sfd = new SaveFileDialog() { Filter = "Excel Workbook|*.xlsx" })
+            {
+                if (sfd.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(sfd.FileName))
+                {
+                    try
+                    {
+                        string fileName = sfd.FileName;
+
+                        using (XLWorkbook workbook = new XLWorkbook())
+                        {
+                            GridView gridView = gridControl1.MainView as GridView;
+
+                            if (gridView != null)
+                            {
+                                gridView.OptionsPrint.ExpandAllDetails = true;
+
+                             
+                                gridView.ExportToXlsx(fileName);
+
+                                System.Diagnostics.Process.Start(fileName);
+                            }
+
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        string errorMessage = "Dosya kayıt edilirken hata oluştu";
+                        if (!string.IsNullOrEmpty(ex.Message))
+                        {
+                            errorMessage += " Error message: " + ex.Message;
+                        }
+                        MessageBox.Show(errorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Lütfen dosyanıza isim verin", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
+
+        }
     }
-
-
-}
+        }
 
 
